@@ -1,0 +1,312 @@
+Crea el frontend completo de DataSocial, una red social que conecta usuarios con intereses similares. El proyecto ya esta creado con Expo (expo-router con file-based routing). Usa la base existente y completa todo lo que falta.
+
+EL LOGOTIPO DE LA APLICACIÓN SE LLAMA LOGO Y ESTÁ EN LA CARPETA ASSETS
+
+======================
+TECNOLOGIAS OBLIGATORIAS
+======================
+
+- React Native con TypeScript
+- Expo Router (file-based routing, carpeta app/)
+- Axios para peticiones HTTP
+- React Native Paper (componentes UI con Material Design)
+- NativeWind (Tailwind CSS para React Native)
+- Zustand (estado global, sin Redux)
+- Splash Screen de Expo (expo-splash-screen)
+
+======================
+CONEXION CON EL BACKEND
+======================
+
+El backend es una API REST en Node.js/Express corriendo en el puerto 3000.
+
+Configurar la IP base de Axios asi:
+
+import { Platform } from 'react-native';
+const IP = Platform.OS === "android" ? "10.0.2.2" : "localhost";
+const API_URL = `http://${IP}:3000/api`;
+
+Crear un archivo api/axios.ts con una instancia de Axios configurada con esa baseURL.
+NO se usa CORS, no hay tokens ni autenticacion con JWT. El login simplemente guarda el usuario en Zustand.
+
+======================
+MODELO DE DATOS
+======================
+
+El backend devuelve estos tipos (sin password, nunca llega al front):
+
+interface User {
+  id: string;
+  nombre: string;
+  apellidos: string;
+  sexo: 'masculino' | 'femenino' | 'otro' | 'prefiero_no_decir';
+  biografia: string;
+  gustoPrincipal1: string;
+  gustoPrincipal2: string;
+  gustoPrincipal3: string;
+  email: string;
+  fechaCreacion: string;
+}
+
+interface Post {
+  id: string;
+  contenido: string;
+  fechaCreacion: string;
+  hashtags: string[];
+  autor?: string;        // viene en GET /api/posts (nombre + apellidos)
+}
+
+interface AfinidadResult {
+  id: string;
+  nombre: string;
+  apellidos: string;
+  gustosComunes: string[];
+  hashtagsComunes: string[];
+  numGustos: number;
+  numHashtags: number;
+  puntuacionAfinidad: number;
+}
+
+======================
+ENDPOINTS DE LA API
+======================
+
+USUARIOS:
+  POST   /api/users/registro   -> Body: { nombre, apellidos, sexo, biografia, gustoPrincipal1, gustoPrincipal2, gustoPrincipal3, email, password }
+                                  Respuesta: User (201)
+                                  Errores: 400 (campos faltantes, sexo no valido, biografia no valida), 500 (email duplicado)
+
+  POST   /api/users/login      -> Body: { email, password }
+                                  Respuesta: User (200)
+                                  Errores: 400 (campos faltantes), 401 (credenciales incorrectas)
+
+  GET    /api/users             -> Respuesta: User[] (200)
+
+  GET    /api/users/:id         -> Respuesta: User (200) o 404
+
+  GET    /api/users/:id/afinidad -> Respuesta: AfinidadResult[] (200)
+                                    Devuelve ranking de usuarios ordenado por afinidad combinada (gustos + hashtags en comun)
+
+  PUT    /api/users/:id         -> Body: campos parciales (no permite cambiar password)
+                                  Respuesta: User (200) o 404
+
+  DELETE /api/users/:id         -> Respuesta: { mensaje: 'Usuario eliminado correctamente' } (200) o 404
+
+POSTS:
+  POST   /api/posts             -> Body: { contenido, hashtags: string[], userId }
+                                  Respuesta: Post con hashtags (201)
+                                  Errores: 400 (campos faltantes, hashtags no es array), 500 (userId no existe)
+
+  GET    /api/posts             -> Respuesta: Post[] con hashtags y autor (200)
+                                  Ordenados por fechaCreacion DESC
+
+  GET    /api/posts/usuario/:userId -> Respuesta: Post[] con hashtags (200)
+
+  DELETE /api/posts/:id         -> Respuesta: { mensaje: 'Post eliminado correctamente' } (200) o 404
+
+======================
+ZUSTAND STORE
+======================
+
+Crear store/useAuthStore.ts con Zustand:
+
+Estado:
+  - user: User | null (usuario logueado)
+  - isLoggedIn: boolean (derivado de user !== null)
+
+Acciones:
+  - login(email, password): llama POST /api/users/login, guarda el user en el store
+  - registro(datos): llama POST /api/users/registro, guarda el user en el store (auto-login tras registro)
+  - logout(): pone user a null
+  - actualizarPerfil(datos): llama PUT /api/users/:id y actualiza el user en el store
+
+No necesita persistencia con AsyncStorage. Al cerrar la app se pierde la sesion.
+
+======================
+SPLASH SCREEN
+======================
+
+Implementar una Splash Screen con expo-splash-screen:
+- Mostrar el nombre "DataSocial" centrado con un subtitulo "Conecta con tus intereses"
+- Usar los colores de la app (morado/violeta como primary del tema Paper)
+- Mantenerla visible 2 segundos antes de navegar
+- Usar SplashScreen.preventAutoHideAsync() y SplashScreen.hideAsync()
+
+======================
+NAVEGACION (EXPO ROUTER)
+======================
+
+Estructura de archivos en app/:
+
+app/
+  _layout.tsx          -> Layout raiz: PaperProvider + NativeWind + logica splash
+  index.tsx            -> Splash screen visual (redirige a login o home segun isLoggedIn)
+  (auth)/
+    _layout.tsx        -> Layout de Stack para pantallas de autenticacion
+    login.tsx          -> Pantalla de login
+    registro.tsx       -> Pantalla de registro (formulario completo)
+  (tabs)/
+    _layout.tsx        -> Layout de Tabs (solo accesible si logueado)
+    index.tsx          -> Feed (lista de todos los posts)
+    crear-post.tsx     -> Crear nuevo post con hashtags
+    afinidad.tsx       -> Ranking de afinidad del usuario logueado
+    perfil.tsx         -> Perfil del usuario logueado con opcion de editar y cerrar sesion
+
+Proteger las rutas: si no hay user en el store, redirigir a login.
+Si hay user, redirigir a tabs.
+
+======================
+PANTALLAS DETALLADAS
+======================
+
+LOGIN (login.tsx):
+- Campos: email (TextInput), password (TextInput con secureTextEntry)
+- Boton "Iniciar Sesion" (Paper Button mode="contained")
+- Link "No tienes cuenta? Registrate" que navega a registro
+- Mostrar error del backend en un Snackbar o HelperText de Paper
+- Mientras carga, mostrar ActivityIndicator en el boton (loading)
+
+REGISTRO (registro.tsx):
+- Formulario con scroll (ScrollView) porque tiene muchos campos:
+  - nombre (TextInput)
+  - apellidos (TextInput)
+  - sexo (selector con RadioButton.Group de Paper)
+    Opciones: masculino, femenino, otro, prefiero_no_decir
+  - biografia (selector desplegable o RadioButton.Group)
+    Opciones exactas del backend:
+      'Casual, me gustan los ponis'
+      'Amante de la naturaleza y los viajes'
+      'Me gusta la informática, por algo me dedico a este mundillo'
+      'Deportista me gusta más que solo el futbol...'
+  - gustoPrincipal1 (TextInput, placeholder "Ej: futbol")
+  - gustoPrincipal2 (TextInput, placeholder "Ej: viajes")
+  - gustoPrincipal3 (TextInput, placeholder "Ej: musica")
+  - email (TextInput, keyboardType="email-address")
+  - password (TextInput, secureTextEntry)
+- Boton "Crear Cuenta"
+- Tras registro exitoso, el usuario queda logueado automaticamente y navega a tabs
+- Mostrar errores del backend (email duplicado, etc.)
+
+FEED / HOME (tabs/index.tsx):
+- Lista de todos los posts (FlatList) llamando GET /api/posts
+- Cada post muestra:
+  - Nombre del autor (texto en negrita)
+  - Contenido del post
+  - Hashtags como Chips de Paper (fila horizontal con scroll)
+  - Fecha formateada
+- Usar Card de Paper para cada post
+- Pull-to-refresh para recargar
+- Si no hay posts, mostrar mensaje "No hay publicaciones todavia"
+
+CREAR POST (tabs/crear-post.tsx):
+- TextInput multilinea para el contenido
+- Input para hashtags: un TextInput donde se escriben separados por comas o espacios
+  Al pulsar "Agregar" o al enviar, se parsean como array de strings
+  Mostrar los hashtags agregados como Chips eliminables
+- Boton "Publicar" que llama POST /api/posts con { contenido, hashtags, userId: user.id }
+- Tras publicar, limpiar el formulario y mostrar Snackbar de confirmacion
+- No navegar automaticamente, quedarse en la misma pantalla
+
+AFINIDAD (tabs/afinidad.tsx):
+- Llama GET /api/users/:id/afinidad con el id del usuario logueado
+- Muestra una lista (FlatList) de usuarios ordenados por puntuacionAfinidad
+- Cada item muestra:
+  - Nombre y apellidos
+  - Gustos en comun como Chips de un color (ej: azul)
+  - Hashtags en comun como Chips de otro color (ej: verde)
+  - Puntuacion total de afinidad (numero grande o Badge)
+- Si no hay resultados, mostrar "No se encontraron usuarios afines"
+- Pull-to-refresh
+
+PERFIL (tabs/perfil.tsx):
+- Muestra los datos del usuario logueado (desde el store, no hace fetch extra):
+  - Nombre completo
+  - Email
+  - Sexo
+  - Biografia
+  - Gustos principales (3 Chips)
+  - Fecha de creacion
+- Boton "Editar Perfil" que abre un modal o navega a una pantalla de edicion
+  donde puede cambiar: nombre, apellidos, biografia, gustos
+  (NO puede cambiar email ni password)
+  Llama PUT /api/users/:id y actualiza el store
+- Boton "Cerrar Sesion" (Paper Button mode="outlined", color rojo)
+  Llama logout() del store y redirige a login
+
+======================
+TEMA Y ESTILOS
+======================
+
+Configurar Paper con un tema personalizado:
+- Color primario: un tono morado/violeta (ej: #6200EE o #7C3AED)
+- Usar el tema tanto en Paper como en NativeWind
+- Los Chips de hashtags deben tener fondo suave del color primario
+- Los cards de posts deben tener sombra sutil y bordes redondeados
+- Fondo general de la app ligeramente gris claro (#F5F5F5 o similar)
+
+Usar NativeWind (className) para layout, espaciado, flexbox.
+Usar Paper components para botones, inputs, cards, chips, snackbars, etc.
+
+======================
+MANEJO DE ERRORES
+======================
+
+- Todas las llamadas a la API deben estar en try/catch
+- Mostrar errores en Snackbar de Paper (parte inferior de la pantalla)
+- Si la API no responde, mostrar "Error de conexion con el servidor"
+- Los campos del formulario de registro deben validarse antes de enviar (que no esten vacios)
+
+======================
+ESTRUCTURA DE CARPETAS
+======================
+
+src/ o directamente en la raiz segun la estructura existente del proyecto Expo:
+
+api/
+  axios.ts              -> Instancia de Axios configurada
+  userApi.ts            -> Funciones: login, registro, obtenerUsuarios, obtenerAfinidad, actualizarPerfil, eliminarUsuario
+  postApi.ts            -> Funciones: crearPost, obtenerPosts, obtenerPostsUsuario, eliminarPost
+
+store/
+  useAuthStore.ts       -> Zustand store
+
+types/
+  index.ts              -> User, Post, AfinidadResult interfaces
+
+components/
+  PostCard.tsx           -> Componente reutilizable para mostrar un post
+  AfinidadCard.tsx       -> Componente reutilizable para mostrar un resultado de afinidad
+  HashtagChips.tsx       -> Componente reutilizable para mostrar chips de hashtags
+
+app/
+  (estructura de rutas descrita arriba)
+
+======================
+DATOS DE PRUEBA EN LA BASE DE DATOS
+======================
+
+La base de datos Neo4j tiene 5 usuarios precargados, todos con contrasena "test1234":
+
+  juan@test.com    -> gustos: futbol, viajes, musica
+  maria@test.com   -> gustos: viajes, fotografia, musica
+  carlos@test.com  -> gustos: programacion, videojuegos, musica
+  laura@test.com   -> gustos: futbol, viajes, cine
+  pedro@test.com   -> gustos: programacion, viajes, cocina
+
+Tambien hay 7 posts publicados con hashtags (Futbol, Viajes, Programacion, Musica, Naturaleza, TypeScript, Deportes).
+
+Para probar la app usa cualquiera de estos emails con contrasena "test1234".
+El endpoint de afinidad desde Juan debe mostrar: Laura (4), Maria (2), Carlos (1), Pedro (1).
+
+
+======================
+NOTAS IMPORTANTES
+======================
+
+- El proyecto ya esta inicializado con Expo. NO ejecutes npx create-expo-app. Usa la estructura existente.
+- Instala solo los paquetes necesarios que falten (axios, zustand, nativewind, react-native-paper, etc.)
+- Todos los textos de la UI en CASTELLANO
+- NO implementar JWT, tokens, ni autenticacion avanzada. El login simplemente guarda el usuario en memoria con Zustand.
+- El userId se obtiene siempre de useAuthStore().user.id
+- Los hashtags se almacenan sin el simbolo #. El front puede mostrarlos con # delante visualmente pero enviarlos sin # al backend.
+- Las biografias deben coincidir EXACTAMENTE con las del backend (copiarlas tal cual, incluyendo puntos suspensivos y tildes).

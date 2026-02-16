@@ -1,0 +1,289 @@
+================================================
+ DataSocial - Base de Datos Neo4j
+ Documentacion y replicacion
+================================================
+
+
+1. DESCRIPCION
+================================================
+
+DataSocial usa Neo4j como base de datos de grafos.
+Los usuarios se conectan entre si a traves de gustos
+compartidos y hashtags en sus publicaciones.
+
+
+2. MODELO DE DATOS
+================================================
+
+Nodos:
+
+  :User
+    - id              (string, UUID, unico)
+    - nombre          (string)
+    - apellidos       (string)
+    - sexo            (string: masculino | femenino | otro | prefiero_no_decir)
+    - biografia       (string, una de las 4 predefinidas)
+    - gustoPrincipal1 (string)
+    - gustoPrincipal2 (string)
+    - gustoPrincipal3 (string)
+    - email           (string, unico)
+    - password        (string, hash bcrypt)
+    - fechaCreacion   (string, ISO datetime)
+
+  :Post
+    - id              (string, UUID, unico)
+    - contenido       (string)
+    - fechaCreacion   (string, ISO datetime)
+
+  :Hashtag
+    - nombre          (string, unico)
+
+Relaciones:
+
+  (:User)-[:PUBLICA]->(:Post)
+  (:Post)-[:TIENE_HASHTAG]->(:Hashtag)
+
+Afinidad entre usuarios:
+  Se calcula por dos vias:
+  - Gustos principales coincidentes (gustoPrincipal1/2/3)
+  - Hashtags compartidos a traves de posts
+  La puntuacion de afinidad es la suma de ambas.
+
+
+3. CONSTRAINTS
+================================================
+
+La base de datos requiere estos constraints para
+garantizar la integridad de los datos:
+
+CREATE CONSTRAINT usuario_email_unico IF NOT EXISTS
+FOR (u:User) REQUIRE u.email IS UNIQUE;
+
+CREATE CONSTRAINT usuario_id_unico IF NOT EXISTS
+FOR (u:User) REQUIRE u.id IS UNIQUE;
+
+CREATE CONSTRAINT post_id_unico IF NOT EXISTS
+FOR (p:Post) REQUIRE p.id IS UNIQUE;
+
+CREATE CONSTRAINT hashtag_nombre_unico IF NOT EXISTS
+FOR (h:Hashtag) REQUIRE h.nombre IS UNIQUE;
+
+
+4. BIOGRAFIAS VALIDAS
+================================================
+
+El campo biografia solo acepta estos 4 valores exactos:
+
+  - Casual, me gustan los ponis
+  - Amante de la naturaleza y los viajes
+  - Me gusta la informática, por algo me dedico a este mundillo
+  - Deportista me gusta más que solo el futbol...
+
+
+5. REPLICACION CON DOCKER
+================================================
+
+Requisito: Docker instalado y corriendo.
+
+5.1 Crear el contenedor:
+
+  docker run -d \
+    --name datasocial-neo4j \
+    -p 7474:7474 \
+    -p 7687:7687 \
+    -e NEO4J_AUTH=neo4j/Rosaprofe.11 \
+    -v datasocial-neo4j-data:/data \
+    neo4j:5
+
+  Puertos:
+    7474 -> Interfaz web (navegador)
+    7687 -> Bolt (conexion desde Node.js)
+
+5.2 Acceder a la interfaz web:
+
+  http://localhost:7474
+  Usuario:    neo4j
+  Contrasena: Rosaprofe.11
+
+5.3 Ejecutar los 4 constraints del apartado 3.
+
+5.4 Insertar el usuario de prueba del apartado 6.
+
+
+6. DATOS DE PRUEBA
+================================================
+
+5 usuarios con gustos cruzados para probar la afinidad,
+publicaciones con hashtags compartidos y relaciones.
+
+La contrasena de TODOS los usuarios es: test1234
+
+Ejecutar este bloque completo en el navegador de Neo4j:
+
+CREATE (u1:User {
+  id: randomUUID(),
+  nombre: 'Juan',
+  apellidos: 'Garcia Lopez',
+  sexo: 'masculino',
+  biografia: 'Deportista me gusta más que solo el futbol...',
+  gustoPrincipal1: 'futbol',
+  gustoPrincipal2: 'viajes',
+  gustoPrincipal3: 'musica',
+  email: 'juan@test.com',
+  password: '$2b$10$xPPPGR6kEqKVqKGYG0qXxeZ5VbXLhBnZq6BxTq5aVpfqLlRf6D9C6',
+  fechaCreacion: toString(datetime())
+})
+CREATE (u2:User {
+  id: randomUUID(),
+  nombre: 'Maria',
+  apellidos: 'Martinez Ruiz',
+  sexo: 'femenino',
+  biografia: 'Amante de la naturaleza y los viajes',
+  gustoPrincipal1: 'viajes',
+  gustoPrincipal2: 'fotografia',
+  gustoPrincipal3: 'musica',
+  email: 'maria@test.com',
+  password: '$2b$10$xPPPGR6kEqKVqKGYG0qXxeZ5VbXLhBnZq6BxTq5aVpfqLlRf6D9C6',
+  fechaCreacion: toString(datetime())
+})
+CREATE (u3:User {
+  id: randomUUID(),
+  nombre: 'Carlos',
+  apellidos: 'Sanchez Perez',
+  sexo: 'masculino',
+  biografia: 'Me gusta la informática, por algo me dedico a este mundillo',
+  gustoPrincipal1: 'programacion',
+  gustoPrincipal2: 'videojuegos',
+  gustoPrincipal3: 'musica',
+  email: 'carlos@test.com',
+  password: '$2b$10$xPPPGR6kEqKVqKGYG0qXxeZ5VbXLhBnZq6BxTq5aVpfqLlRf6D9C6',
+  fechaCreacion: toString(datetime())
+})
+CREATE (u4:User {
+  id: randomUUID(),
+  nombre: 'Laura',
+  apellidos: 'Fernandez Diaz',
+  sexo: 'femenino',
+  biografia: 'Casual, me gustan los ponis',
+  gustoPrincipal1: 'futbol',
+  gustoPrincipal2: 'viajes',
+  gustoPrincipal3: 'cine',
+  email: 'laura@test.com',
+  password: '$2b$10$xPPPGR6kEqKVqKGYG0qXxeZ5VbXLhBnZq6BxTq5aVpfqLlRf6D9C6',
+  fechaCreacion: toString(datetime())
+})
+CREATE (u5:User {
+  id: randomUUID(),
+  nombre: 'Pedro',
+  apellidos: 'Lopez Moreno',
+  sexo: 'otro',
+  biografia: 'Amante de la naturaleza y los viajes',
+  gustoPrincipal1: 'programacion',
+  gustoPrincipal2: 'viajes',
+  gustoPrincipal3: 'cocina',
+  email: 'pedro@test.com',
+  password: '$2b$10$xPPPGR6kEqKVqKGYG0qXxeZ5VbXLhBnZq6BxTq5aVpfqLlRf6D9C6',
+  fechaCreacion: toString(datetime())
+})
+
+CREATE (p1:Post {id: randomUUID(), contenido: 'Vaya partido el de ayer, increible la remontada!', fechaCreacion: toString(datetime())})
+CREATE (p2:Post {id: randomUUID(), contenido: 'Ruta por los Picos de Europa, paisajes brutales', fechaCreacion: toString(datetime())})
+CREATE (p3:Post {id: randomUUID(), contenido: 'Acabo de terminar mi primer proyecto en TypeScript', fechaCreacion: toString(datetime())})
+CREATE (p4:Post {id: randomUUID(), contenido: 'Festival de musica este finde, alguien se apunta?', fechaCreacion: toString(datetime())})
+CREATE (p5:Post {id: randomUUID(), contenido: 'Nuevo destino desbloqueado: Islandia!', fechaCreacion: toString(datetime())})
+CREATE (p6:Post {id: randomUUID(), contenido: 'Probando la nueva version de React Native', fechaCreacion: toString(datetime())})
+CREATE (p7:Post {id: randomUUID(), contenido: 'Gol de ultimo minuto, que locura de liga', fechaCreacion: toString(datetime())})
+
+MERGE (h1:Hashtag {nombre: 'futbol'})
+MERGE (h2:Hashtag {nombre: 'viajes'})
+MERGE (h3:Hashtag {nombre: 'programacion'})
+MERGE (h4:Hashtag {nombre: 'musica'})
+MERGE (h5:Hashtag {nombre: 'naturaleza'})
+MERGE (h6:Hashtag {nombre: 'typescript'})
+MERGE (h7:Hashtag {nombre: 'deportes'})
+
+CREATE (u1)-[:PUBLICA]->(p1)
+CREATE (u1)-[:PUBLICA]->(p4)
+CREATE (u2)-[:PUBLICA]->(p2)
+CREATE (u2)-[:PUBLICA]->(p5)
+CREATE (u3)-[:PUBLICA]->(p3)
+CREATE (u3)-[:PUBLICA]->(p6)
+CREATE (u4)-[:PUBLICA]->(p7)
+
+CREATE (p1)-[:TIENE_HASHTAG]->(h1)
+CREATE (p1)-[:TIENE_HASHTAG]->(h7)
+CREATE (p2)-[:TIENE_HASHTAG]->(h2)
+CREATE (p2)-[:TIENE_HASHTAG]->(h5)
+CREATE (p3)-[:TIENE_HASHTAG]->(h3)
+CREATE (p3)-[:TIENE_HASHTAG]->(h6)
+CREATE (p4)-[:TIENE_HASHTAG]->(h4)
+CREATE (p5)-[:TIENE_HASHTAG]->(h2)
+CREATE (p6)-[:TIENE_HASHTAG]->(h3)
+CREATE (p7)-[:TIENE_HASHTAG]->(h1)
+CREATE (p7)-[:TIENE_HASHTAG]->(h7)
+
+RETURN u1, u2, u3, u4, u5;
+
+Credenciales de los usuarios:
+  juan@test.com   / test1234
+  maria@test.com  / test1234
+  carlos@test.com / test1234
+  laura@test.com  / test1234
+  pedro@test.com  / test1234
+
+Mapa de afinidad esperado (para verificar que funciona):
+
+  Desde Juan (futbol, viajes, musica):
+    Laura  -> 2 gustos (futbol, viajes) + 2 hashtags (futbol, deportes) = 4
+    Maria  -> 2 gustos (viajes, musica) + 0 hashtags                   = 2
+    Carlos -> 1 gusto (musica)          + 0 hashtags                    = 1
+    Pedro  -> 1 gusto (viajes)          + 0 hashtags                    = 1
+
+  Desde Carlos (programacion, videojuegos, musica):
+    Pedro  -> 1 gusto (programacion)    + 0 hashtags                    = 1
+    Juan   -> 1 gusto (musica)          + 0 hashtags                    = 1
+    Maria  -> 1 gusto (musica)          + 0 hashtags                    = 1
+
+
+7. QUERIES DE VERIFICACION
+================================================
+
+Ver todo el grafo:
+
+  MATCH (n) RETURN n;
+
+Listar usuarios:
+
+  MATCH (u:User)
+  RETURN u.nombre, u.email, u.gustoPrincipal1, u.gustoPrincipal2, u.gustoPrincipal3;
+
+Ver posts con hashtags:
+
+  MATCH (u:User)-[:PUBLICA]->(p:Post)-[:TIENE_HASHTAG]->(h:Hashtag)
+  RETURN u.nombre, p.contenido, h.nombre;
+
+Ver constraints activos:
+
+  SHOW CONSTRAINTS;
+
+
+8. CONFIGURACION DEL BACKEND (config.env)
+================================================
+
+Estos valores deben coincidir con el contenedor:
+
+  PORT=3000
+  NODE_ENV=development
+  NEO4J_URI=bolt://localhost:7687
+  NEO4J_USER=neo4j
+  NEO4J_PASSWORD=Rosaprofe.11
+
+
+9. COMANDOS DOCKER
+================================================
+
+  Parar:      docker stop datasocial-neo4j
+  Arrancar:   docker start datasocial-neo4j
+  Logs:       docker logs datasocial-neo4j
+  Eliminar:   docker rm -f datasocial-neo4j
+  Reset total: docker rm -f datasocial-neo4j && docker volume rm datasocial-neo4j-data
