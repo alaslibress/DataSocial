@@ -6,6 +6,8 @@
   <img src="https://img.shields.io/badge/Version-1.0.0-green?style=for-the-badge" alt="Version"/>
 </p>
 
+README y documentación realizada (parcialmente) con Claude code sonnet 4.5 (Comentarios del proyecto manuales sin IA)
+
 **DataSocial** es una aplicación, API REST y base de datos que en conjunto forman DataSocial, una aplicación que busca conectar a gente entre sí mediante palabras claves y técnicas de relaciones usadas en Ciencias de datos y en bases de datos orientadas a grafos, el proyecto busca expandirse para implementar operaciones de big data.
 
 ## Tecnologias utilizadas
